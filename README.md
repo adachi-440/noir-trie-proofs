@@ -13,7 +13,7 @@ With Nargo v0.10.4, you can depend on this library by adding the following to yo
 
 ```toml
 [dependencies]
-noir_trie_proofs = { git = "aragonzkresearch/noir-trie-proofs", tag = "main", directory = "lib" }
+noir_trie_proofs = { git = "https://github.com/adachi-440/noir-trie-proofs.git", tag = "main", directory = "lib" }
 ```
 
 ## Contributing
