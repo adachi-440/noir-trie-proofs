@@ -1,5 +1,6 @@
 // Ethereum trie proof implementation
 use dep::std::hash::keccak256;
+use dep::std;
 
 mod rlp; // Module for required RLP encoding/decoding
 
@@ -63,7 +64,6 @@ impl<PROOF_LEN, VALUE_LEN> TrieProof<32, PROOF_LEN, VALUE_LEN>
         for i in 0..(path.len()/MAX_TRIE_NODE_LENGTH - 1)
         {
             let range_p = (i as u8) < (depth - 1) as u8; // Range predicate
-            
             let k = if (range_p) {i} else {0}; // Restrict index to range {0, ..., depth - 2}
 
             // Populate node array
@@ -73,7 +73,6 @@ impl<PROOF_LEN, VALUE_LEN> TrieProof<32, PROOF_LEN, VALUE_LEN>
 	        }
 
             assert(!range_p | verify_node_hash(node, extracted_hash)); // If within range, node hash should match the hash extracted from the preceding node.
-            
             // Extract hash and advance key pointer if within range
             if range_p
             {
@@ -82,7 +81,6 @@ impl<PROOF_LEN, VALUE_LEN> TrieProof<32, PROOF_LEN, VALUE_LEN>
                 key_ptr = lookup.1;
             }
         }
-        
         // Treat final node as the preceding nodes...
         for j in 0..MAX_TRIE_NODE_LENGTH
 	    {
@@ -91,8 +89,8 @@ impl<PROOF_LEN, VALUE_LEN> TrieProof<32, PROOF_LEN, VALUE_LEN>
 
         assert(verify_node_hash(node, extracted_hash));
 
-        let rlp_list: rlp::RLP_List<MAX_NUM_FIELDS> = rlp::decode1_small_lis(node); // Both slots contain less than 56 bytes.
-        
+        let rlp_list: rlp::RLP_List<MAX_NUM_FIELDS> = rlp::decode1_small_lis(node);
+
         // ...except extract a value rather than a key.
  	    let (mut extracted_value, extracted_value_length, terminal_key_ptr): ([u8; 33], Field, Field) = resolve2(LEAF, node, rlp_list, key_nibbles, key_ptr);
 
@@ -104,7 +102,6 @@ impl<PROOF_LEN, VALUE_LEN> TrieProof<32, PROOF_LEN, VALUE_LEN>
         // Decode extracted value
         let (dec_value_offset, dec_value_len) = rlp::decode0(extracted_value);
         assert(dec_value_len == value_length);
-        
         for i in 0..VALUE_LEN
         {
             if (i as u32) < (value_length as u32)
@@ -112,7 +109,7 @@ impl<PROOF_LEN, VALUE_LEN> TrieProof<32, PROOF_LEN, VALUE_LEN>
                 assert(extracted_value[dec_value_offset + i] == value[i]);
             }
         }
-        
+
         true
     }
 }
@@ -376,7 +373,6 @@ fn resolve2<N, VALUE_LEN>(
 {
     // We should be dealing with a node containing two elements
     assert(rlp_list.num_fields == 2);
-    
     let mut value = [0; VALUE_LEN];
     
     let first_slot: [u8; 1 + NIBBLE_LENGTH/2] = rlp::take_dot_drop(node,rlp_list.offset[0]); // TODO: Replace consts with numeric generics when it is possible to use them in array length expressions
@@ -389,13 +385,14 @@ fn resolve2<N, VALUE_LEN>(
 
     // Check that the `niblen` nibbles in the first slot match up with the `niblen` nibbles
     // in `key` starting from offset `key_ptr`.
-    for i in 0..NIBBLE_LENGTH
-    {
-        if (i as u32) < (niblen as u32)
-        {
-            assert(nib[i] == key[key_ptr + i]);
-        }
-    }
+    check_niblen(key, key_ptr, nib, niblen);
+    // for i in 0..NIBBLE_LENGTH
+    // {
+    //     if (i as u32) < (niblen as u32)
+    //     {
+    //         assert(nib[i] == key[key_ptr + i]);
+    //     }
+    // }
 
     // Store length of value obtained
 	let value_length = rlp_list.length[1];
@@ -417,8 +414,21 @@ fn resolve2<N, VALUE_LEN>(
     let node_type_nibble = (first_slot[0] >> 4);
 
     assert(if node_type == LEAF { (node_type_nibble as u4) > 1 } else { (node_type == EXTENSION) & ((node_type_nibble as u4) <= 1) }); // Must have resolved a leaf or extension node.
-    
     (value, value_length, key_ptr)
+}
+
+unconstrained fn check_niblen(
+    key: [u4; NIBBLE_LENGTH],
+    key_ptr: Field,
+    nib: [u4; NIBBLE_LENGTH],
+    niblen: Field) {
+    for i in 0..NIBBLE_LENGTH
+    {
+        if (i as u32) < (niblen as u32)
+        {
+            assert(nib[i] == key[key_ptr + i]);
+        }
+    }
 }
 
 
@@ -459,7 +469,7 @@ fn byte_value<N>(in_value: [u8; N]) -> ([u8; N], Field)
     (value, value_length)
 }
 
-fn left_byte_shift<N>(input: [u8; N], n: Field) -> [u8; N]
+unconstrained fn left_byte_shift<N>(input: [u8; N], n: Field) -> [u8; N]
 {
     let mut out = [0; N];
 
@@ -470,7 +480,6 @@ fn left_byte_shift<N>(input: [u8; N], n: Field) -> [u8; N]
             out[i] = input[i+n];
         }
     }
-
     out
 }
 
